@@ -59,7 +59,7 @@ void shutdown_handler(int signum) {
  * @brief 자식 프로세스 사망 시그널을 처리, 재시작
  */
 void child_death_handler(int sig) {
-    pid_t dead_pid;
+    pid_t dead_pid, new_pid;
     int dead_index;
     // While 루프로 전체 프로세스를 도는 이유: 좀비 프로세스를 방지하기 위함.
     // WNOHANG -> 기다리는 PID가 종료되지 않은 상태일 경우 반환 값으로 0을 받음, 종료되어 종료 상태를 회수가 가능할 땐 pid를 받음
@@ -67,14 +67,16 @@ void child_death_handler(int sig) {
         printf("[Main Proc] 경고! 프로세스(PID:%d)가 사망했습니다. 다시 살려냅니다...\n", dead_pid);
         dead_index = -1;
         for(int i = 0; i < NUM_MANAGERS; i++) {
-            if(child_pids[i] = dead_pid) {
+            if(child_pids[i] == dead_pid) {
                 dead_index = i;
                 break;
             }
         }
-        if(dead_pid != -1) {
-            printf("[Main Proc] Dead Manager Index: %d (%s) Restart...", dead_index, manager_exec_names[dead_index]);
-            start_manager(dead_index);
+        if(dead_index != -1) {
+            printf("[Main Proc] Dead Manager Index: %d (%s) Restart...\n", dead_index, manager_exec_names[dead_index]);
+            new_pid = start_manager(dead_index);
+            child_pids[dead_index] = new_pid;
+            printf("[Main Proc] %s New PID:%d\n", manager_exec_names[dead_index], new_pid);
         }
     }
 }
