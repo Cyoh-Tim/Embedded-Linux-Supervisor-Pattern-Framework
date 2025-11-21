@@ -16,12 +16,16 @@ const char* manager_exec_names[NUM_MANAGERS] = {
     POWER_MANAGER_EXEC 
 };
 
+// 프로세스 감시 및 재시작 위한 PID 저장 인덱스
+pid_t child_pids[NUM_MANAGERS];
+
 /**
  * @brief 인덱스를 사용하여 특정 매니저 프로세스를 생성하고 실행합니다.
  * @param manager_index 실행할 매니저의 배열 인덱스
  */
-void start_manager(int manager_index) {
-    if (fork() == 0) {
+pid_t start_manager(int manager_index) {
+    pid_t pid = fork();
+    if (pid == 0) {
         // 자식 프로세스 영역
         const char* exec_name = manager_exec_names[manager_index];
         printf("[Main Proc] Starting manager: %s\n", exec_name);
@@ -32,7 +36,12 @@ void start_manager(int manager_index) {
         // execl이 성공하면 이 아래 코드는 실행되지 않습니다. 실패했을 경우에만 실행
         perror("execl failed"); 
         exit(1);
+    } else if (pid > 0)
+    {
+        //부모 프로세스 영역
+        return pid;
     }
+    return -1;
 }
 
 /**
@@ -46,11 +55,35 @@ void shutdown_handler(int signum) {
     exit(0); 
 }
 
+/**
+ * @brief 자식 프로세스 사망 시그널을 처리, 재시작
+ */
+void child_death_handler(int sig) {
+    pid_t dead_pid;
+    int dead_index;
+    // While 루프로 전체 프로세스를 도는 이유: 좀비 프로세스를 방지하기 위함.
+    // WNOHANG -> 기다리는 PID가 종료되지 않은 상태일 경우 반환 값으로 0을 받음, 종료되어 종료 상태를 회수가 가능할 땐 pid를 받음
+    while((dead_pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+        printf("[Main Proc] 경고! 프로세스(PID:%d)가 사망했습니다. 다시 살려냅니다...\n", dead_pid);
+        dead_index = -1;
+        for(int i = 0; i < NUM_MANAGERS; i++) {
+            if(child_pids[i] = dead_pid) {
+                dead_index = i;
+                break;
+            }
+        }
+        if(dead_pid != -1) {
+            printf("[Main Proc] Dead Manager Index: %d (%s) Restart...", dead_index, manager_exec_names[dead_index]);
+            start_manager(dead_index);
+        }
+    }
+}
 
 int main() {
     // OS 시그널(SIGINT: Ctrl+C, SIGTERM: 시스템 종료)이 오면 shutdown_handler 함수 실행
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
+    signal(SIGCHLD, child_death_handler);
 
     key_t key;
     int msgid;
@@ -69,7 +102,9 @@ int main() {
     // 3. 모든 매니저 프로세스 시작 (for 루프 사용)
     for(int i = 0; i < NUM_MANAGERS; i++)
     {
-        start_manager(i);
+        pid_t pid = start_manager(i);
+        child_pids[i] = pid;
+        printf("[Main Proc] Started manager '%s' with PID: %d. (Index: %d)\n", manager_exec_names[i], pid, i);
     }
     
     sleep(1); // 자식 프로세스들이 완전히 시작될 시간을 줌
