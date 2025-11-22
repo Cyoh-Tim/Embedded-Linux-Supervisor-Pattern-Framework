@@ -4,7 +4,8 @@
 #include <sys/msg.h>
 #include <unistd.h>
 #include "common_ipc.h"
-#include "power_manager.h" 
+#include "power_manager.h"
+#include "log.h" 
 
 void manager_loop(int msgid) {
     IpcMessage rcv_msg;
@@ -15,7 +16,7 @@ void manager_loop(int msgid) {
         if (msgrcv(msgid, &rcv_msg, sizeof(IpcMessage) - sizeof(long), TYPE_POWER_MANAGER, 0) == -1) break;
 
         if (rcv_msg.command == CMD_SHUTDOWN) {
-            printf("[Power Proc] Shutdown received. Preparing for final power off.\n");
+            LOG_INFO("Shutdown received. Preparing for final power off.");
             // 실제 전원 차단 함수 호출
             trigger_hardware_power_off_signal(); 
             break;
@@ -26,6 +27,7 @@ void manager_loop(int msgid) {
 
 int main() {
     key_t key; int msgid;
+    log_init("Power Proc", NULL);
     if ((key = ftok("./ipc.key", 'A')) == -1) exit(1);
     if ((msgid = msgget(key, 0666)) == -1) exit(1);
     manager_loop(msgid);

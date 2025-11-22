@@ -1,4 +1,7 @@
 #include "common_ipc.h"
+#include "log.h"
+#include <errno.h>
+#include <string.h>
 
 void send_ipc_message(int msgid, long recipient_type, int cmd, const char* data) {
     IpcMessage msg;
@@ -10,6 +13,7 @@ void send_ipc_message(int msgid, long recipient_type, int cmd, const char* data)
     msg.payload[MAX_MSG_SIZE - 1] = '\0';
 
     if (msgsnd(msgid, &msg, sizeof(IpcMessage) - sizeof(long), 0) == -1) {
-        perror("msgsnd in helper function failed");
+        LOG_ERROR("msgsnd failed to send type %ld, cmd %d: %s", 
+                   recipient_type, cmd, strerror(errno));
     }
 }

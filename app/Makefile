@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -std=c99
 RM = rm -f
 
 # 소스 파일 목록
-COMMON_SRC = common_ipc.c
+COMMON_SRC = common_ipc.c log.c
 
 # 실행 파일 목록 (OUTPUTS)
 TARGETS = main led_manager_proc motor_manager_proc state_manager_proc power_manager_proc

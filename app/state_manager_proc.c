@@ -6,11 +6,12 @@
 #include <unistd.h>
 #include "common_ipc.h"
 #include "state_manager.h"
+#include "log.h"
 
 // 상태에 따라 LED/Motor에 다르게 명령을 내리는 함수
 void handle_operation(int msgid) {
     SystemState current = get_system_state();
-    printf("[STATE Proc] Handling operation in State: %d\n", current);
+    LOG_INFO("Handling operation in State: %d", current);
 
     switch (current) {
         case STATE_DISPLAY:
@@ -34,7 +35,7 @@ void handle_operation(int msgid) {
             send_ipc_message(msgid, TYPE_MOTOR_MANAGER, CMD_STOP, "Test Mode Stop");
             break;
         case STATE_ECO:
-            printf("[STATE Proc] ECO Mode: Preparing for HARD POWER OFF.\n");
+            LOG_INFO("ECO Mode: Preparing for HARD POWER OFF.");
             
             // 모든 하드웨어 정리
             send_ipc_message(msgid, TYPE_LED_MANAGER, CMD_OFF, "Power Off Prepare");
@@ -48,7 +49,7 @@ void handle_operation(int msgid) {
 
         case STATE_BOOTING:
         default:
-            printf("[STATE Proc] System still booting or unknown state. Doing nothing.\n");
+            LOG_INFO("System still booting or unknown state. Doing nothing.");
             break;
     }
 }
@@ -61,14 +62,14 @@ void manager_loop(int msgid) {
         if (msgrcv(msgid, &rcv_msg, sizeof(IpcMessage) - sizeof(long), TYPE_STATE_MANAGER, 0) == -1) break;
 
         if (rcv_msg.command == CMD_SHUTDOWN) {
-            printf("[STATE Proc] Shutdown received. Orchestrating system shutdown.\n");
+            LOG_INFO("Shutdown received. Orchestrating system shutdown.");
             send_ipc_message(msgid, TYPE_LED_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
             send_ipc_message(msgid, TYPE_MOTOR_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
             break; 
         }
 
         if (strcmp(rcv_msg.payload, "boot_done") == 0) {
-            printf("[STATE Proc] Received 'boot_done'. Defaulting to OPERATIONAL mode.\n");
+            LOG_INFO("Received 'boot_done'. Defaulting to OPERATIONAL mode.");
             set_system_state(STATE_OPERATIONAL); // 기본 운영 모드로 설정
             handle_operation(msgid); // 초기 동작 실행
         }
@@ -76,19 +77,20 @@ void manager_loop(int msgid) {
         if (rcv_msg.command == CMD_SET_MODE) {
             SystemState new_state = (SystemState)atoi(rcv_msg.payload);
             set_system_state(new_state);
-            printf("[STATE Proc] Mode changed via IPC to %d. Re-evaluating operations.\n", new_state);
+            LOG_INFO("Mode changed via IPC to %d. Re-evaluating operations.", new_state);
             // 모드 변경 후, 새로운 상태에 맞는 동작 실행
             handle_operation(msgid); 
         }
 
         if (rcv_msg.command == CMD_GET_STATUS) {
-            printf("[STATE Proc] Current state is %d.\n", get_system_state());
+            LOG_INFO("Current state is %d.", get_system_state());
         }
     }
 }
 
 int main() {
     key_t key; int msgid;
+    log_init("STATE Proc", NULL);
     if ((key = ftok("./ipc.key", 'A')) == -1) exit(1);
     if ((msgid = msgget(key, 0666)) == -1) exit(1);
     manager_loop(msgid);

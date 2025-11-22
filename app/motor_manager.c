@@ -1,11 +1,13 @@
 #include "motor_manager.h"
+#include "log.h"
 #include <stdio.h>
 void initialize_motor_hardware() {
-    printf("[Motor Driver] Initializing hardware interface...\n");
+    log_init("MOTOR", NULL);
+    LOG_INFO("Initializing hardware interface...");
 }
 void start_motor() {
-    printf("[Motor Driver] -> Sending Start Signal\n");
+    LOG_INFO("-> Sending Start Signal");
 }
 void stop_motor() {
-    printf("[Motor Driver] -> Sending Stop Signal\n");
+    LOG_INFO("-> Sending Stop Signal");
 }

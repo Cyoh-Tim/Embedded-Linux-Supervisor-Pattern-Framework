@@ -1,12 +1,14 @@
 #include "led_manager.h"
+#include "log.h"
 #include <stdio.h>
 void initialize_led_hardware() {
-    printf("[LED Driver] Initializing hardware interface...\n");
+    log_init("LED", NULL);
+    LOG_INFO("Initializing hardware interface...");
 }
 void set_led_state(int state) {
     if (state == 1) {
-        printf("[LED Driver] -> GPIO High: LED ON\n");
+        LOG_INFO("-> GPIO High: LED ON");
     } else {
-        printf("[LED Driver] -> GPIO Low: LED OFF\n");
+        LOG_INFO("-> GPIO Low: LED OFF");
     }
 }

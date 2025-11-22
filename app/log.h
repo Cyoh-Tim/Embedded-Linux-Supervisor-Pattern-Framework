@@ -5,6 +5,8 @@
 // 커널에선 이 인자로 /dev/console을 UART로 연결하게되어 stdout은 /dev/console로 연결되어 printf문을 써도 무방함.
 // 이런 식이 아닌 경우 fd open을 통해 /dev/ttyS0 같이 출력부에 직접 write하는 함수를 만들어 사용함. << 추천은 안함.
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 typedef enum {
     LOG_LEVEL_DEBUG = 0,
