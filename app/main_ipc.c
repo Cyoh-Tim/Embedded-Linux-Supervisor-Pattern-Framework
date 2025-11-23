@@ -9,6 +9,9 @@
 #include "common_ipc.h"
 #include "log.h"
 
+#define TIMEOUT_SECONDS 5   // watchdog 수행 시 타임아웃
+
+
 // 실행 파일 이름들을 저장하는 배열 (common_ipc.h의 NUM_MANAGERS 크기)
 const char* manager_exec_names[NUM_MANAGERS] = {
     LED_MANAGER_EXEC,
@@ -68,6 +71,7 @@ void child_death_handler(int sig) {
     int dead_index;
     // While 루프로 전체 프로세스를 도는 이유: 좀비 프로세스를 방지하기 위함.
     // WNOHANG -> 기다리는 PID가 종료되지 않은 상태일 경우 반환 값으로 0을 받음, 종료되어 종료 상태를 회수가 가능할 땐 pid를 받음
+    LOG_ERROR("Received signal: %s (%d)", strsignal(sig), sig);
     while((dead_pid = waitpid(-1, NULL, WNOHANG)) > 0) {
         LOG_WARN("경고! 프로세스(PID:%d)가 사망했습니다. 다시 살려냅니다...", dead_pid);
         dead_index = -1;
@@ -95,9 +99,12 @@ int main() {
     signal(SIGINT, shutdown_handler);
     signal(SIGTERM, shutdown_handler);
     signal(SIGCHLD, child_death_handler);
+    signal(SIGALRM, child_death_handler);
 
     key_t key;
     int msgid;
+    IpcMessage rcv_watchdog_msg;
+    int rcv_result;
 
     // 1. ipc.key 파일을 기준으로 키 생성
     if ((key = ftok("./ipc.key", 'A')) == -1) {
@@ -122,16 +129,50 @@ int main() {
 
     // 4. 부팅 완료 신호 전송 (STATE 매니저에게 총괄 시작을 알림)
     // common_ipc.c의 헬퍼 함수 사용
-    send_ipc_message(msgid, TYPE_STATE_MANAGER, 0, "boot_done");
+    send_ipc_message(msgid, TYPE_STATE_MANAGER, CMD_BOOT_SEQUENCE, "boot_done");
     
     LOG_INFO("Sent 'boot_done'. System operational.");
     LOG_INFO("System running. Press Ctrl+C to stop.");
 
-    // 5. 전원 ON 동안 메인 프로세스는 계속 대기 (return 하지 않음, pause 사용)
+    // 5. 전원 ON 동안 메인 프로세스는 계속 Watchdog 수행
     while(1) {
-        pause(); // OS 시그널이 올 때까지 CPU를 사용하지 않고 효율적으로 대기
+        //pause(); // OS 시그널이 올 때까지 CPU를 사용하지 않고 효율적으로 대기
+        for(int i = 1; i < TYPE_MANAGER_MAX - 1; i++)   // main ipc는 감시할 필요 없음
+        {
+            pid_t target_pid = child_pids[i - 1];
+            send_ipc_message(msgid, i + 1, CMD_REQUEST_PING, "Request Ping");   // Ping 요창
+            alarm(TIMEOUT_SECONDS); // 5초까지 기다립니다
+            rcv_result = msgrcv(msgid, &rcv_watchdog_msg, sizeof(IpcMessage) - sizeof(long), TYPE_MAIN_MANAGER, 0);
+            if (rcv_result == -1) { // 수신 실패
+                if (errno == EINTR) {
+                    LOG_WARN("Timeout (SIGALRM) occurred for manager IPC check KILL target Process mtype: %d (PID: %d)",
+                        i, target_pid);
+                    // 프로세스를 kill 하면 다음 메시지에서 SIGCHLD 발생
+                    kill(target_pid, SIGKILL);
+                } else {
+                    LOG_FATAL("msgrcv fatal error: %s", strerror(errno));
+                    goto exit_watchdog_loop;    // 통신 자체에 이상이 있으므로 시스템 종료
+                }
+            } else {    // 수신 성공
+                alarm(0);
+                if (rcv_watchdog_msg.command == CMD_SEND_PONG && 
+                    strcmp(rcv_watchdog_msg.payload, "Send Pong") == 0) 
+                {
+                    // 수신이 잘 되는지 확인하고 싶을 때 열면 됩니다.
+                    //LOG_INFO("System OK, %s (PID: %d)", manager_exec_names[i - 1], target_pid);
+                }
+                else {
+                    // 수신은 되었으나 이상한 커맨드를 받았을 때
+                    LOG_WARN("Received invalid Watchdog response: mtype=%d, PID:%d, CMD=%d, Payload=%s", 
+                        rcv_watchdog_msg.mtype, target_pid, rcv_watchdog_msg.command, rcv_watchdog_msg.payload);
+                }
+            }
+        }
+        sleep(1);   // 1초 단위로 감시
     }
-    
+
+exit_watchdog_loop:
+    // Watchdog 수신 시 IPC 오류가 생길 때 시스템 종료함
     // 이 코드는 pause()에 의해 실행되지 않습니다.
     return 0; 
 }

@@ -60,30 +60,36 @@ void manager_loop(int msgid) {
     
     while (1) {
         if (msgrcv(msgid, &rcv_msg, sizeof(IpcMessage) - sizeof(long), TYPE_STATE_MANAGER, 0) == -1) break;
-
-        if (rcv_msg.command == CMD_SHUTDOWN) {
-            LOG_INFO("Shutdown received. Orchestrating system shutdown.");
-            send_ipc_message(msgid, TYPE_LED_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
-            send_ipc_message(msgid, TYPE_MOTOR_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
-            break; 
-        }
-
-        if (strcmp(rcv_msg.payload, "boot_done") == 0) {
-            LOG_INFO("Received 'boot_done'. Defaulting to OPERATIONAL mode.");
-            set_system_state(STATE_OPERATIONAL); // 기본 운영 모드로 설정
-            handle_operation(msgid); // 초기 동작 실행
-        }
-        
-        if (rcv_msg.command == CMD_SET_MODE) {
-            SystemState new_state = (SystemState)atoi(rcv_msg.payload);
-            set_system_state(new_state);
-            LOG_INFO("Mode changed via IPC to %d. Re-evaluating operations.", new_state);
-            // 모드 변경 후, 새로운 상태에 맞는 동작 실행
-            handle_operation(msgid); 
-        }
-
-        if (rcv_msg.command == CMD_GET_STATUS) {
-            LOG_INFO("Current state is %d.", get_system_state());
+        switch(rcv_msg.command)
+        {
+            case CMD_SHUTDOWN:
+                LOG_INFO("Shutdown received. Orchestrating system shutdown.");
+                send_ipc_message(msgid, TYPE_LED_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
+                send_ipc_message(msgid, TYPE_MOTOR_MANAGER, CMD_SHUTDOWN, "Shutdown Request");
+                break; 
+            case CMD_BOOT_SEQUENCE:
+                if (strcmp(rcv_msg.payload, "boot_done") == 0) {
+                    LOG_INFO("Received 'boot_done'. Defaulting to OPERATIONAL mode.");
+                    set_system_state(STATE_OPERATIONAL); // 기본 운영 모드로 설정
+                    handle_operation(msgid); // 초기 동작 실행
+                }
+                break;
+            case CMD_SET_MODE:
+                SystemState new_state = (SystemState)atoi(rcv_msg.payload);
+                set_system_state(new_state);
+                LOG_INFO("Mode changed via IPC to %d. Re-evaluating operations.", new_state);
+                // 모드 변경 후, 새로운 상태에 맞는 동작 실행
+                handle_operation(msgid);
+                break;
+            case CMD_GET_STATUS:
+                if (rcv_msg.command == CMD_GET_STATUS) {
+                    LOG_INFO("Current state is %d.", get_system_state());
+                }
+                break;
+            case CMD_REQUEST_PING: 
+                // Main Manager(TYPE_MAIN_MANAGER에게 PONG 응답 전송
+                send_ipc_message(msgid, TYPE_MAIN_MANAGER, CMD_SEND_PONG, "Send Pong");
+                break;
         }
     }
 }

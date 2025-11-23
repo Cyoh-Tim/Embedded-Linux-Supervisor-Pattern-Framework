@@ -14,14 +14,19 @@ void manager_loop(int msgid) {
     while (1) {
         // Power Manager 타입의 메시지를 기다림
         if (msgrcv(msgid, &rcv_msg, sizeof(IpcMessage) - sizeof(long), TYPE_POWER_MANAGER, 0) == -1) break;
-
-        if (rcv_msg.command == CMD_SHUTDOWN) {
-            LOG_INFO("Shutdown received. Preparing for final power off.");
-            // 실제 전원 차단 함수 호출
-            trigger_hardware_power_off_signal(); 
-            break;
+        switch(rcv_msg.command)
+        {
+            case CMD_SHUTDOWN:
+                LOG_INFO("Shutdown received. Preparing for final power off.");
+                // 실제 전원 차단 함수 호출
+                trigger_hardware_power_off_signal(); 
+                break;
+            // Watchdog PING 요청 처리
+            case CMD_REQUEST_PING: 
+                // Main Manager(TYPE_MAIN_MANAGER에게 PONG 응답 전송
+                send_ipc_message(msgid, TYPE_MAIN_MANAGER, CMD_SEND_PONG, "Send Pong");
+                break;
         }
-        // 다른 전원 관련 명령 처리...
     }
 }
 

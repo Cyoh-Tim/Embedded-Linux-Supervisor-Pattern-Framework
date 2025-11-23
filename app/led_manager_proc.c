@@ -17,6 +17,11 @@ void manager_loop(int msgid) {
         switch(rcv_msg.command) {
             case CMD_ON: set_led_state(1); break;
             case CMD_OFF: set_led_state(0); break;
+            // Watchdog PING 요청 처리
+            case CMD_REQUEST_PING: 
+                // Main Manager(TYPE_MAIN_MANAGER에게 PONG 응답 전송
+                send_ipc_message(msgid, TYPE_MAIN_MANAGER, CMD_SEND_PONG, "Send Pong");
+                break;
         }
     }
 }

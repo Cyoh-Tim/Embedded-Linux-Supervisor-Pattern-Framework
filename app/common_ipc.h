@@ -17,10 +17,12 @@ typedef struct {
 
 // 메시지 타입
 typedef enum {
-    TYPE_LED_MANAGER = 1,
+    TYPE_MAIN_MANAGER = 1,  // fix
+    TYPE_LED_MANAGER,
     TYPE_MOTOR_MANAGER,
     TYPE_STATE_MANAGER,
-    TYPE_POWER_MANAGER
+    TYPE_POWER_MANAGER,
+    TYPE_MANAGER_MAX    // MANAGER 메시지 타입 마지막 enum, TYPE_MANAGER_MAX - 1 값으로 메시지 타입 개수를 알 수 있음
 } ManagerType;
 
 // 명령어 정의
@@ -31,6 +33,9 @@ typedef enum {
     CMD_STOP,
     CMD_GET_STATUS,
     CMD_SET_MODE,
+    CMD_REQUEST_PING,
+    CMD_SEND_PONG,
+    CMD_BOOT_SEQUENCE = 98,
     CMD_SHUTDOWN = 99
 } CommandType;
 
